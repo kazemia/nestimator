@@ -1,3 +1,6 @@
+#This file includes all the functions used in NESTIMATOR IV analysis.
+#Run the whole file to load the functions before doing any experiments.
+
 library(tidyverse)
 library(combinat)
 library(stringr)
