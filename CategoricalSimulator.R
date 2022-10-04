@@ -1,6 +1,5 @@
-
+#Specify the treatments and the instrument values
 TLevels <- c("Inf", "Ada", "Cer", "Eta", "Gol")
-all_instruments <- permn(TLevels)
 Z <- list("2010" = c("Inf", "Gol", "Cer", "Eta", "Ada"),
           "2011" = c("Eta", "Inf", "Cer", "Gol", "Ada"),
           "2012" = c("Inf", "Eta", "Cer", "Gol", "Ada"),
@@ -17,23 +16,19 @@ Z <- list("2010" = c("Inf", "Gol", "Cer", "Eta", "Ada"),
 )
 nZ <- length(Z)
 names(Z) <- 1:nZ
-
-
-
+#Generate all the adherence sets
 A <- GenerateA(TLevels)
-#A <- A[c(2,5,7)]
-#names(A) <- paste0("A", 1:length(A))
 
+#Find the identifiable effects
 R <- MakeR(A, Z, T_decider)
 KB <- MakeKB(R, TLevels, 4)
 b <- KbSolver(KB, 3)
 Pis <- PiIdentifier(b)
 
+#Create a confounder variable and specify how it affects the probabilities of A and Y
 VLevels <- c(0,1)
-VP <- c(0.75,0.25)
-#VA1 <- sample.int(length(A), replace = T)
-#VA2 <- sample.int(length(A), replace = T)
-VA2prT <- list("Inf" = 5,"Ada" = 4,"Cer" = 3,"Eta" = 2, "Gol" = 1)
+VP <- c(0.2,0.8)
+VA2prT <- list("Inf" = 16,"Ada" = 8,"Cer" = 4,"Eta" = 2, "Gol" = 1)
 VA2 <- unlist(lapply(A, function(x){
   out <- 0
   for(t in x){
@@ -42,17 +37,22 @@ VA2 <- unlist(lapply(A, function(x){
   return(out/length(x))
 }))
 VA1 <- max(unlist(VA2prT)) + 1 - VA2
-
-
+VA1 <- c(rep(0, length(A)-1),1)
 VA <- list(VA1/sum(VA1),
            VA2/sum(VA2))
 VY <- c(0,0.25)
-TY <- c(0.1,0.25,0.4,0.55,0.7)
 names(VA) <- VLevels
-sim_max <- 10000
-sim_step <- 500
-n_sim <- 1000
 
+#Specify the effect of T on Y
+TY <- c(0.1,0.25,0.4,0.55,0.7)
+
+#Specify maximum number of observations in simulation, the step 
+#and number of simulations pr step
+sim_max <- 10000
+sim_step <- 1000
+n_sim <- 500
+
+#Simulate
 myCluster <- makeCluster(14)
 registerDoParallel(myCluster)
 sim_res <- list()
@@ -107,28 +107,44 @@ for(nP in 1:floor(sim_max/sim_step)){
 }
 stopCluster(myCluster)
 
+#Put the results into a dataframe
 sim_results <- sim_res[[1]]
 for (counter in 2:length(sim_res)) {
   sim_results <- rbind(sim_results, sim_res[[counter]])
 }
 remove(sim_res)
 
-my_sum <- sim_results %>% group_by(TT, n, method) %>% summarise(est_mean = mean(estimate),
-                                                                est_sd = sd(estimate))
+#Summarise the simulation results
+my_sum <- sim_results %>%
+  group_by(TT, n, method) %>% summarise(est_mean = mean(estimate, na.rm = TRUE),
+                                        est_sd = sd(estimate, na.rm = TRUE))
+TTs <- unique(my_sum$TT[my_sum$method == "LATE_IV"])
+my_sum <- my_sum %>% group_by(TT) %>% mutate(bias = abs(
+  est_mean - TY[TLevels == str_split(TT, "_")[[1]][1]] + 
+    TY[TLevels == str_split(TT, "_")[[1]][2]]))
 
+my_sum <- my_sum %>% mutate(log_sd = log(est_sd),
+                            log_bias = log(bias))
+
+#Plot the results
 library(ggplot2)
-for(t in unique(my_sum$TT[my_sum$method == "LATE_IV"])){
+for(t in TTs){
   (ggplot(my_sum %>% filter((method %in% c("LATE_IV", "ATE_naive", "IV_naive")) & 
-                             (TT == t)), aes(x = n, y = est_mean, color = method)) +
-    geom_line() + scale_x_continuous(n.breaks = 15) +
-     geom_hline(yintercept = TY[TLevels == str_split(t, "_")[[1]][1]] - 
-                  TY[TLevels == str_split(t, "_")[[1]][2]]) + ggtitle(t)) %>% 
+                             (TT == t)), aes(x = n, y = log_bias, color = method)) +
+    geom_line() + scale_x_continuous(n.breaks = 15) + ggtitle(t)) %>% 
     print()
   
   (ggplot(my_sum %>% filter((method %in% c("LATE_IV", "ATE_naive", "IV_naive")) & 
-                             (TT == t)), aes(x = n, y = est_sd, color = method)) +
+                             (TT == t)), aes(x = n, y = log_sd, color = method)) +
     geom_line() + scale_x_continuous(n.breaks = 15)+ ggtitle(t)) %>% print()
 }
+
+
+
+
+
+#THE CODE AFTER THIS IS NOT IN USE
+
 
 
 box_data <- data.frame(TT = names(unlist(sim_res[[1]])),
