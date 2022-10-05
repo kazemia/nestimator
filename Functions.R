@@ -313,6 +313,37 @@ CatSimulator <- function(n, Z, A, TLevels, VLevels, VP, VA, VY, TY, T_decider){
   return(data.frame(Z = Z_obs_ind, T = T_obs, Y = Y_obs))
 }
 
+CatSimulator2 <- function(n, Z, A, TLevels, VT, VP, VtoZstrength,VY, TY, ZT = "exp"){
+  Z_obs_ind <- sample.int(length(Z), size = n, replace = TRUE)
+  Z_obs <- Z[Z_obs_ind]
+  names(Z_obs) <- 1:n
+  nT <- length(TLevels)
+  nV <- length(VTLevels)
+  V_obs <- matrix(NA, nrow = n, ncol = length(VP))
+  for(v_counter in 1:nV)
+    V_obs[,v_counter] <- rbinom(n,1,VP[v_counter])
+  VTeffect <- (V_obs %*% t(VT))*VtoZstrength
+  T_probs <- data.frame(matrix(NA, nrow = n, ncol = 0))
+  if(ZT == "exp"){
+    for(t in TLevels){
+      T_probs[[t]] <- sapply(Z_obs, function(z) exp(nT - which(z == t)))
+    }
+  }else if(ZT == "lin"){
+    T_probs[[t]] <- sapply(Z_obs, function(z) (nT - which(z == t)))
+  }else{
+    return("Pass a proper ZT")
+  }
+  T_probs <- T_probs*(1-VtoZstrength)/max(T_probs)
+  T_probs <- T_probs + VTeffect
+  T_obs <- apply(T_probs, 1, function(x) sample(TLevels, size = 1, prob = x))
+  YP <- V_obs %*% VY
+  YP <- TY[match(T_obs, TLevels)] + (V_obs %*% VY)
+  YP[YP < 0] = 0
+  YP[YP > 1] = 1
+  Y_obs <- rbinom(rep(n,n),1,YP)
+  return(data.frame(Z = Z_obs_ind, T = T_obs, Y = Y_obs))
+}
+
 BinarySimulator <- function(ZT, VT, VY, TY, n, OR = FALSE){
   #Function: BinarySimulator
   #Purpose: Simulating data with 2 treatments
