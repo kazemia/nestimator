@@ -18,12 +18,144 @@ nZ <- length(Z)
 names(Z) <- 1:nZ
 #Generate all the adherence sets
 A <- GenerateA(TLevels)
-
 #Find the identifiable effects
 R <- MakeR(A, Z, T_decider)
 KB <- MakeKB(R, TLevels, 4)
 b <- KbSolver(KB, 3)
 Pis <- PiIdentifier(b)
+
+
+#Specify arguments again for CatSimulator2
+VT = as.matrix(data.frame(V1T = c(0,0,0,exp(3),0), V2T = c(0,0,exp(3),0,0)))
+VP = c(0.3,0.3)
+VY = c(0.3, 0.3)
+TY = c(0.1,0.25,0.4,0.55,0.7)
+VReturn = c(TRUE, FALSE)
+
+#Specify maximum number of observations in simulation, the step 
+#and number of simulations pr step
+sim_max <- 10000
+sim_start <- 400
+sim_step <- 200
+n_sim <- 1000
+TT_vec <- c("Inf_Cer", "Inf_Eta", "Ada_Eta", "Ada_Gol", "Cer_Gol1", "Cer_Gol2", "Cer_Gol3", "Eta_Gol")
+
+#Simulate
+myCluster <- makeCluster(15)
+registerDoParallel(myCluster)
+sim_res <- list()
+for(nP in floor(sim_start/sim_step):floor(sim_max/sim_step)){
+  sim_res[[nP]] <- foreach(counter=idiv(n_sim, chunks=getDoParWorkers()), .combine = rbind,
+                     .packages = c("dplyr", "tidyverse", "stringr","lpSolve")
+                     ) %dopar% {
+                       out <- data.frame(TT = NA, n = NA, method = NA, estimate = NA)
+                       for(counter2 in 1:counter){
+                         sim_data <- CatSimulator2(nP*sim_step, Z, TLevels, VT,
+                                                   VP, VY, TY, VReturn)
+                         P_Z <- MakeP_Z(sim_data, "Z", "T")
+                         Q_Z <- MakeQ_Z(sim_data, "Z", "T", "Y")
+                         P_Sigma <- P_SigmaIdentifier(P_Z, KB, b)
+                         temp <- LATEIdentifier(Q_Z, KB, b, P_Sigma, RR = FALSE, AverageProb = FALSE)
+                         out <- rbind(out, data.frame(
+                           TT = TT_vec,
+                           n = rep(nP*sim_step, 8),
+                           method = rep("LATE_IV_unadj", 8),
+                           estimate = unlist(temp, use.names = FALSE)
+                         ))
+                         temp <- LATEIdentifier(Q_Z, KB, b, P_Sigma, RR = FALSE, AverageProb = TRUE)
+                         out <- rbind(out, data.frame(
+                           TT = TT_vec,
+                           n = rep(nP*sim_step, 8),
+                           method = rep("LATE_IV_wa_unadj", 8),
+                           estimate = unlist(temp, use.names = FALSE)
+                         ))
+                         for(tt in names(temp)[sapply(temp, length)==1]){
+                           out <- rbind(out, data.frame(
+                             TT = rep(tt,3),
+                             n = rep(nP*sim_step, 3),
+                             method = c("ATE_naive", "IV_naive", "LATE_IV_adj"),
+                             estimate = c(mean(sim_data$Y[sim_data$T == str_split(tt, "_")[[1]][1]]) - 
+                                            mean(sim_data$Y[sim_data$T == str_split(tt, "_")[[1]][2]]),
+                                          NaiveIV(tt, sim_data, Z, "T", "Z", "Y"),
+                                          lm(Y*w ~ (T==str_split(tt, "_")[[1]][1]) + V1,
+                                             data = PseudoPopulator(tt, sim_data,
+                                                                    KB, b, P_Sigma,
+                                                                    "Z", "T", "Y", 4))$coefficients[2])
+                           ))
+                         }
+                         tt <- "Cer_Gol"
+                         out <- rbind(out, data.frame(
+                           TT = c("Cer_Gol1", "Cer_Gol2", "Cer_Gol3"),
+                           n = rep(nP*sim_step, 3),
+                           method = rep("ATE_naive", 3),
+                           estimate = rep(mean(sim_data$Y[sim_data$T == str_split(tt, "_")[[1]][1]]) - 
+                                          mean(sim_data$Y[sim_data$T == str_split(tt, "_")[[1]][2]]), 3)
+                         ))
+                         out <- rbind(out, data.frame(
+                           TT = c("Cer_Gol1", "Cer_Gol2", "Cer_Gol3"),
+                           n = rep(nP*sim_step, 3),
+                           method = rep("IV_naive", 3),
+                           estimate = rep(NaiveIV(tt, sim_data, Z, "T", "Z", "Y"), 3)
+                         ))
+                         out <- rbind(out, data.frame(
+                           TT = c("Cer_Gol1", "Cer_Gol2", "Cer_Gol3"),
+                           n = rep(nP*sim_step, 3),
+                           method = rep("LATE_IV_adj", 3),
+                           estimate = c(lm(Y*w ~ (T==str_split(tt, "_")[[1]][1]) + V1,
+                                           data = PseudoPopulator(tt, sim_data,
+                                                                  KB, b, P_Sigma,
+                                                                  "Z", "T", "Y", 4, Pi_index = 1))$coefficients[2],
+                                        lm(Y*w ~ (T==str_split(tt, "_")[[1]][1]) + V1,
+                                           data = PseudoPopulator(tt, sim_data,
+                                                                  KB, b, P_Sigma,
+                                                                  "Z", "T", "Y", 4, Pi_index = 2))$coefficients[2],
+                                        lm(Y*w ~ (T==str_split(tt, "_")[[1]][1]) + V1,
+                                           data = PseudoPopulator(tt, sim_data,
+                                                                  KB, b, P_Sigma,
+                                                                  "Z", "T", "Y", 4, Pi_index = 3))$coefficients[2])
+                         ))
+                       }
+                       out[2:nrow(out),]
+                     }
+}
+stopCluster(myCluster)
+
+#Put the results into a dataframe
+sim_results <- sim_res[[1]]
+for (counter in 2:length(sim_res)) {
+  sim_results <- rbind(sim_results, sim_res[[counter]])
+}
+
+#Summarise the simulation results
+my_sum <- sim_results %>%
+  group_by(TT, n, method) %>% summarise(est_mean = mean(estimate, na.rm = TRUE),
+                                        est_sd = sd(estimate, na.rm = TRUE))
+my_sum <- my_sum %>% group_by(TT) %>% mutate(bias = abs(
+  est_mean - TY[TLevels == str_split(TT, "_")[[1]][1]] + 
+    TY[TLevels == substr(str_split(TT, "_")[[1]][2], 1,3)]))
+
+my_sum <- my_sum %>% mutate(log_sd = log(est_sd),
+                            log_bias = log(bias))
+TTs <- unique(my_sum$TT)
+meths <- c("ATE_naive", "IV_naive", "LATE_IV_unadj")
+#Plot the results
+library(ggplot2)
+for(t in TTs){
+  (ggplot(my_sum %>% filter((method %in% meths) & 
+                             (TT == t)), aes(x = n, y = log_bias, color = method)) +
+    geom_line() + scale_x_continuous(n.breaks = 15) + ggtitle(t)) %>% 
+    print()
+  
+  (ggplot(my_sum %>% filter((method %in% meths) & 
+                             (TT == t)), aes(x = n, y = log_sd, color = method)) +
+    geom_line() + scale_x_continuous(n.breaks = 15)+ ggtitle(t)) %>% print()
+}
+
+
+
+
+
+#THE CODE AFTER THIS IS NOT IN USE
 
 #Create a confounder variable and specify how it affects the probabilities of A and Y
 VLevels <- c(0,1)
@@ -43,107 +175,19 @@ VA <- list(VA1/sum(VA1),
 VY <- c(0,0.25)
 names(VA) <- VLevels
 
-#Specify the effect of T on Y
-TY <- c(0.1,0.25,0.4,0.55,0.7)
 
-#Specify maximum number of observations in simulation, the step 
-#and number of simulations pr step
-sim_max <- 10000
-sim_step <- 1000
-n_sim <- 500
-
-#Simulate
-myCluster <- makeCluster(14)
-registerDoParallel(myCluster)
-sim_res <- list()
-for(nP in 1:floor(sim_max/sim_step)){
-  sim_res[[nP]] <- foreach(counter=idiv(n_sim, chunks=getDoParWorkers()), .combine = rbind,
-                     .packages = c("dplyr", "tidyverse", "stringr","lpSolve")
-                     ) %dopar% {
-                       out <- data.frame(TT = NA, n = NA, method = NA, estimate = NA)
-                       for(counter2 in 1:counter){
-                         sim_data <- CatSimulator(n = nP*sim_step,
-                                                  Z = Z,
-                                                  A = A,
-                                                  TLevels = TLevels,
-                                                  VLevels = c(0,1),
-                                                  VP = VP,
-                                                  VA = VA,
-                                                  VY = VY,
-                                                  TY = TY,
-                                                  T_decider = T_decider)
-                         P_Z <- MakeP_Z(sim_data, "Z", "T")
-                         Q_Z <- MakeQ_Z(sim_data, "Z", "T", "Y")
-                         P_Sigma <- P_SigmaIdentifier(P_Z, KB, b)
-                         temp <- LATEIdentifier(Q_Z, KB, b, P_Sigma, RR = FALSE, AverageProb = FALSE)
-                         temp$Cer_Gol <- temp$Cer_Gol[2]
-                         out <- rbind(out, data.frame(
-                           TT = names(temp)[sapply(temp, length)>0],
-                           n = rep(nP*sim_step, sum(sapply(temp, length))),
-                           method = rep("LATE_IV", sum(sapply(temp, length))),
-                           estimate = unlist(temp, use.names = FALSE)
-                         ))
-                         temp <- LATEIdentifier(Q_Z, KB, b, P_Sigma, RR = FALSE, AverageProb = TRUE)
-                         temp$Cer_Gol <- temp$Cer_Gol[2]
-                         out <- rbind(out, data.frame(
-                           TT = names(temp)[sapply(temp, length)>0],
-                           n = rep(nP*sim_step, sum(sapply(temp, length))),
-                           method = rep("LATE_IV_wa", sum(sapply(temp, length))),
-                           estimate = unlist(temp, use.names = FALSE)
-                         ))
-                         for(tt in names(temp)){
-                           out <- rbind(out, data.frame(
-                             TT = rep(tt,2),
-                             n = rep(nP*sim_step, 2),
-                             method = c("ATE_naive", "IV_naive"),
-                             estimate = c(mean(sim_data$Y[sim_data$T == str_split(tt, "_")[[1]][1]]) - 
-                                            mean(sim_data$Y[sim_data$T == str_split(tt, "_")[[1]][2]]),
-                                          NaiveIV(tt, sim_data, Z, "T", "Z", "Y"))
-                           ))
-                         }
-                       }
-                       out[2:nrow(out),]
-                     }
-}
-stopCluster(myCluster)
-
-#Put the results into a dataframe
-sim_results <- sim_res[[1]]
-for (counter in 2:length(sim_res)) {
-  sim_results <- rbind(sim_results, sim_res[[counter]])
-}
-remove(sim_res)
-
-#Summarise the simulation results
-my_sum <- sim_results %>%
-  group_by(TT, n, method) %>% summarise(est_mean = mean(estimate, na.rm = TRUE),
-                                        est_sd = sd(estimate, na.rm = TRUE))
-TTs <- unique(my_sum$TT[my_sum$method == "LATE_IV"])
-my_sum <- my_sum %>% group_by(TT) %>% mutate(bias = abs(
-  est_mean - TY[TLevels == str_split(TT, "_")[[1]][1]] + 
-    TY[TLevels == str_split(TT, "_")[[1]][2]]))
-
-my_sum <- my_sum %>% mutate(log_sd = log(est_sd),
-                            log_bias = log(bias))
-
-#Plot the results
-library(ggplot2)
-for(t in TTs){
-  (ggplot(my_sum %>% filter((method %in% c("LATE_IV", "ATE_naive", "IV_naive")) & 
-                             (TT == t)), aes(x = n, y = log_bias, color = method)) +
-    geom_line() + scale_x_continuous(n.breaks = 15) + ggtitle(t)) %>% 
-    print()
-  
-  (ggplot(my_sum %>% filter((method %in% c("LATE_IV", "ATE_naive", "IV_naive")) & 
-                             (TT == t)), aes(x = n, y = log_sd, color = method)) +
-    geom_line() + scale_x_continuous(n.breaks = 15)+ ggtitle(t)) %>% print()
-}
+VT = as.matrix(data.frame(V1T = c(1,0,0,0,0), V2T = c(0,0,1,0,0)))
+VP = c(0.3,0.3)
+VtoZstrength = 0.5
+VY = c(0.2,-0.1)
+TY = c(0.1,0.25,0.4,0.55,0.7)
+sim_data <- CatSimulator2(50000, Z, TLevels, VT, VP, VtoZstrength,VY, TY, ZT = "exp")
+P_Z <- MakeP_Z(sim_data, "Z", "T")
+Q_Z <- MakeQ_Z(sim_data, "Z", "T", "Y")
+P_Sigma <- P_SigmaIdentifier(P_Z, KB, b)
+temp <- LATEIdentifier(Q_Z, KB, b, P_Sigma, RR = FALSE, AverageProb = FALSE)
 
 
-
-
-
-#THE CODE AFTER THIS IS NOT IN USE
 
 
 
