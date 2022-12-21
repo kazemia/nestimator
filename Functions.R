@@ -132,7 +132,7 @@ KbSolver <- function(KB, tolerance){
       KK[[paste(names(K)[t1_ind], names(K)[t2_ind], sep = "_")]] <- K[c(t1_ind, t2_ind)]
     }
   }
-  names(K) <- names(KB)
+  names(K) <- names(KB) #Should be removed?
   K_tbSolver <- function(KK_t){
     K_t <- rbind(KK_t[[1]], KK_t[[2]])
     VN <- colnames(K_t)
@@ -161,7 +161,7 @@ KbSolver <- function(KB, tolerance){
     }
     solutions <- allSolutions
     solutions <- solutions[(rowSums(solutions)>0) & 
-                             (colSums(K_t_backUp %*% t(solutions) == 0) == (2*numVars)),]
+                             (colSums(abs(K_t_backUp %*% t(solutions)) < 10^(-tolerance)) == (2*numVars)),]
     if(is.null(nrow(solutions))){
       names(solutions) <- VN
     }else{

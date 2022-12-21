@@ -64,6 +64,10 @@ data <- data %>% mutate(trtgrp = TLevels[match(trtgrp, substr(TLevels, 1, 3))])
 
 
 P_Z <- MakeP_Z(data, "Year", "trtgrp")
+
+plot(1:5, P_Z[y,match(Z[[y]], colnames(P_Z))], type = "l")
+lines(1:5, exp(5:1)/sum(exp(1:5)))
+
 Q_Z <- MakeQ_Z(data, "Year", "trtgrp", "das28rem")
 A <- GenerateA(TLevels)
 R <- MakeR(A, Z, T_decider)
