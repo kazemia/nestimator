@@ -149,7 +149,7 @@ KbSolver <- function(KB, tolerance){
     mylp <- lp('max', rep(0,numcols), rbind(K_t, K_t),
                         c(rep("<", numcols), rep(">", numcols)),
                         c(rep(10^(-tolerance), numcols), rep(-10^(-tolerance), numcols)),
-                        all.bin = TRUE, num.bin.solns=((2^numcols) + 1))
+                        all.bin = TRUE, num.bin.solns=((2^numcols) + 1), use.rw = TRUE)
     numsols <- mylp$num.bin.solns
     solutions <- matrix(head(mylp$solution, numcols*numsols), nrow=numsols, byrow=TRUE)
     allSolutions <- matrix(0, nrow = nrow(solutions), ncol = numVars)
