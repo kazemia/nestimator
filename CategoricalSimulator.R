@@ -242,6 +242,48 @@ for(t in TTs){
 
 #THE CODE AFTER THIS IS NOT IN USE
 
+
+sim_data <- CatSimulator2(1000000, Z, TLevels, VT,
+                          VP, VY, TY, Vadj)
+P_Z <- MakeP_Z(sim_data, "Z", "T")
+Q_Z <- MakeQ_Z(sim_data, "Z", "T", "Y")
+P_Sigma <- P_SigmaIdentifier(P_Z, KB, b)
+temp <- LATEIdentifier(Q_Z, KB, b, P_Sigma, RR = FALSE, AverageProb = FALSE)
+
+SC_summary <- sim_data %>% group_by(Z) %>% summarise(mean_y = mean(Y))
+ggplot() + geom_smooth(data = sim_data, aes(x = Z, y = Y), method = lm) + 
+  geom_point(data = SC_summary, aes(x = Z, y = mean_y)) + ylab("Average Remission rate") +
+  scale_x_continuous(breaks = 2010:2019)
+
+sim_data2 <- sim_data
+sim_data2$m <- sample.int(12, size = 1000000, replace = TRUE)
+sim_data2 <- sim_data2 %>% mutate(Y = Y + ((Z*12) + m))
+P_Z2 <- MakeP_Z(sim_data2, "Z", "T")
+Q_Z2 <- MakeQ_Z(sim_data2, "Z", "T", "Y")
+P_Sigma2 <- P_SigmaIdentifier(P_Z2, KB, b)
+temp2 <- LATEIdentifier(Q_Z2, KB, b, P_Sigma2, RR = FALSE, AverageProb = FALSE)
+
+SC_summary <- sim_data2 %>% group_by(Z) %>% summarise(mean_y = mean(Y))
+ggplot() + geom_smooth(data = sim_data2, aes(x = Z, y = Y), method = lm) + 
+  geom_point(data = SC_summary, aes(x = Z, y = mean_y)) + ylab("Average Remission rate") +
+  scale_x_continuous(breaks = 2010:2019)
+
+SC_model <- lm(Y ~ Z, data = sim_data2)
+sim_data2$Adjusted_y <- round(SC_model$residuals)
+P_Z3 <- MakeP_Z(sim_data2, "Z", "T")
+Q_Z3 <- MakeQ_Z(sim_data2, "Z", "T", "Adjusted_y")
+P_Sigma3 <- P_SigmaIdentifier(P_Z3, KB, b)
+temp3 <- LATEIdentifier(Q_Z3, KB, b, P_Sigma3, RR = FALSE, AverageProb = FALSE)
+
+SC_model <- lm(Y ~ m + as.factor(Z), data = sim_data2)
+sim_data2 <- sim_data2 %>% mutate(Adjustment = (Z*12+m)*SC_model$coefficients["m"])
+sim_data2$Adjusted_yZ <- round(sim_data2$Y - sim_data2$Adjustment)
+P_Z4 <- MakeP_Z(sim_data2, "Z", "T")
+Q_Z4 <- MakeQ_Z(sim_data2, "Z", "T", "Adjusted_yZ")
+P_Sigma4 <- P_SigmaIdentifier(P_Z4, KB, b)
+temp4 <- LATEIdentifier(Q_Z4, KB, b, P_Sigma4, RR = FALSE, AverageProb = FALSE)
+
+
 #Create a confounder variable and specify how it affects the probabilities of A and Y
 VLevels <- c(0,1)
 VP <- c(0.2,0.8)

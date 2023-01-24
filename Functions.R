@@ -93,7 +93,7 @@ MakeR <- function(A, Z, T_decider = T_decider){
   outer(Z,A, Vectorize(T_decider)) %>% as.data.frame() %>% return()
 }
 
-MakeKB <- function(R, TLevels, tolerance){
+MakeKB <- function(R, TLevels, tolerance, balanced = FALSE, weights = NULL){
   #Function: MakeKB
   #Purpose: Making binary indicator matrices and K
   #Input:
@@ -102,8 +102,13 @@ MakeKB <- function(R, TLevels, tolerance){
   #       tolerance: The number of decimals of accuracy.
   #Returns: A list of lists of matrices. For every treatment, it calculates the 
   #         indicator matrix B_t, its psudo-inverse B_t^+ and K_t = I - B_tB_t^+
-  KB_t <- function(t, R, tolerance){
+  KB_t <- function(t, R, tolerance, balanced, weights){
     B_t <- 1*(R==t)
+    if(balanced){
+      for(c in colnames(B_t)){
+        B_t[,c] <- B_t[,c] * weights
+      }
+    }
     B_t_i <- MASS::ginv(B_t)
     temp <- B_t_i %*% B_t
     K = round(diag(ncol(R)) - temp, tolerance)
@@ -111,7 +116,7 @@ MakeKB <- function(R, TLevels, tolerance){
          B_t = B_t,
          B_t_i = B_t_i)
   }
-  KB <- lapply(TLevels, KB_t, R, tolerance)
+  KB <- lapply(TLevels, KB_t, R, tolerance, balanced, weights)
   names(KB) <- TLevels
   return(KB)
 }
@@ -369,7 +374,7 @@ BinarySimulator <- function(ZT, VT, VY, TY, n, OR = FALSE){
 }
 
 BSCICalculator <- function(n, data, Z_column, T_column, Y_column, TLevels, Z,
-                           alpha = 0.05, n_cores = 14, 
+                           alpha = 0.05, n_cores = 14, Cap = FALSE, balanced = TRUE,
                            MakeP_Z. = MakeP_Z, MakeQ_Z. = MakeQ_Z,
                            GenerateA. = GenerateA, T_decider. = T_decider, 
                            MakeR. = MakeR, MakeKB. = MakeKB,
@@ -387,12 +392,13 @@ BSCICalculator <- function(n, data, Z_column, T_column, Y_column, TLevels, Z,
   #       TLevels: A vector of possible values for the treatment
   #       Alpha: P-value for two sided test
   #       n_cores: The number of CPU cores used for bootstrapping
+  #       Cap: Whether or not the effects should be capped with max-min
   #Returns: A list with three elements:
   #         Alpha: P-value for two sided test
   #         BSData: The result of bootstrapping
   #         CIs: data frame of confidence intervals
   StatisticCalculator <- function(counter, data, Z_column, T_column, Y_column, 
-                                  TLevels, Z, MakeP_Z.. = MakeP_Z.,
+                                  TLevels, Z, balanced, MakeP_Z.. = MakeP_Z.,
                                   MakeQ_Z.. = MakeQ_Z.,
                                   GenerateA.. = GenerateA.,
                                   T_decider.. = T_decider., 
@@ -401,11 +407,19 @@ BSCICalculator <- function(n, data, Z_column, T_column, Y_column, TLevels, Z,
                                   P_SigmaIdentifier.. = P_SigmaIdentifier.,
                                   LATEIdentifier.. = LATEIdentifier.){
     data <- data[sample(nrow(data), nrow(data), replace=T),]
+    Z_weights <- data %>% group_by(Z_value) %>% summarise(N = n())
+    Z_weights$Prob <- Z_weights$N/sum(Z_weights$N)
     P_Z <- MakeP_Z..(data, Z_column, T_column)
     Q_Z <- MakeQ_Z..(data, Z_column, T_column, Y_column)
+    if(balanced){
+      for(t in TLevels){
+        P_Z[[t]] <- P_Z[[t]] * Z_weights$Prob
+        Q_Z[[t]] <- Q_Z[[t]] * Z_weights$Prob
+      }
+    }
     A <- GenerateA..(TLevels)
     R <- MakeR..(A, Z, T_decider..)
-    KB <- MakeKB..(R, TLevels, 5)
+    KB <- MakeKB..(R, TLevels, 5, balanced, Z_weights$Prob)
     b <- KbSolver..(KB,4)
     P_Sigma <- P_SigmaIdentifier..(P_Z, KB, b)
     Contrasts <- LATEIdentifier..(Q_Z, KB, b, P_Sigma)
@@ -418,16 +432,28 @@ BSCICalculator <- function(n, data, Z_column, T_column, Y_column, TLevels, Z,
                                   "lpSolve")) %dopar% {
                                     sapply(1:b, StatisticCalculator, data,
                                            Z_column, T_column,Y_column,
-                                           TLevels, Z)
+                                           TLevels, Z, balanced)
                                   }
   stopCluster(myCluster)
   bootstrap_data <- t(boot_b)
   bootstrap_data <- as.data.frame(bootstrap_data)
   CIs <- data.frame()
-  for(c in colnames(bootstrap_data)){
-    CIs <- rbind(CIs,
-                 quantile(bootstrap_data[[c]],
-                          c(alpha/2,(1-(alpha/2))), na.rm = T))
+  Cap_value <- max(data[[Y_column]]) - min(data[[Y_column]])
+  if(Cap){
+    for(c in colnames(bootstrap_data)){
+      CIs <- rbind(CIs,
+                   quantile(bootstrap_data[[c]][
+                     (bootstrap_data[[c]] <= Cap_value) &
+                       (bootstrap_data[[c]] >= (-Cap_value)) &
+                       (!is.na(bootstrap_data[[c]]))],
+                            c(alpha/2,(1-(alpha/2)))))
+    }
+  }else{
+    for(c in colnames(bootstrap_data)){
+      CIs <- rbind(CIs,
+                   quantile(bootstrap_data[[c]],
+                            c(alpha/2,(1-(alpha/2))), na.rm = T))
+    }
   }
   colnames(CIs) <- c("Lower_bound", "Upper_bound")
   rownames(CIs) <- colnames(bootstrap_data)
