@@ -154,7 +154,7 @@ KbSolver <- function(KB, tolerance){
     mylp <- lp('max', rep(0,numcols), rbind(K_t, K_t),
                         c(rep("<", numcols), rep(">", numcols)),
                         c(rep(10^(-tolerance), numcols), rep(-10^(-tolerance), numcols)),
-                        all.bin = TRUE, num.bin.solns=((2^numcols) + 1), use.rw = TRUE)
+                        all.bin = TRUE, num.bin.solns=((2^numcols) + 1), use.rw = FALSE)
     numsols <- mylp$num.bin.solns
     solutions <- matrix(head(mylp$solution, numcols*numsols), nrow=numsols, byrow=TRUE)
     allSolutions <- matrix(0, nrow = nrow(solutions), ncol = numVars)
@@ -374,7 +374,7 @@ BinarySimulator <- function(ZT, VT, VY, TY, n, OR = FALSE){
 }
 
 BSCICalculator <- function(n, data, Z_column, T_column, Y_column, TLevels, Z,
-                           alpha = 0.05, n_cores = 14, Cap = FALSE, balanced = TRUE,
+                           alpha = 0.05, n_cores = 14, Cap = FALSE, balanced = FALSE,
                            MakeP_Z. = MakeP_Z, MakeQ_Z. = MakeQ_Z,
                            GenerateA. = GenerateA, T_decider. = T_decider, 
                            MakeR. = MakeR, MakeKB. = MakeKB,
