@@ -133,4 +133,6 @@ Pis <- PiIdentifier(b)
 P_Sigma_covar <- P_SigmaIdentifier(pz_covar, KB, b)
 LATEs_covar <- LATEIdentifier(qz_covar, KB, b, P_Sigma_covar)
 
+readr::write_rds(LATEs_covar, "data/LATEs_covar.rds")
+readr::write_rds(qz_covar, "data/qz_covar.rds")
 
