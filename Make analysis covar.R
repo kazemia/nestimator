@@ -27,7 +27,7 @@ pz_margins <- function(data = adeff) {
     "
 tempfile tmp
 
-mlogit  trtgrp i.Z_value 
+mlogit  trtgrp i.Z_value
 margins  i.Z_value, saving(`tmp')
 use `tmp', clear
 
@@ -72,7 +72,8 @@ ptzm_margins <- function(data = adeff) {
     "
 tempfile tmp
 
-logistic das28crprem i.Z_value i.trtgrp cal_months
+constraint 1 cal_month = 0.01249
+logistic das28crprem i.Z_value##i.trtgrp c.cal_month, constraint(1)
 quietly margins Z_value#trtgrp,  saving(`tmp')
 use `tmp', clear
 
@@ -105,7 +106,10 @@ ptzm_covar <- ptzm_margins(adeff) %>%
 ptzm_covar
 
 qz_covar <- pz_covar * ptzm_covar
+qz_covar[is.na(qz_covar)] <- 0
+qz_covar
 
+plot(1:10, rowSums(qz_covar, na.rm = TRUE)-qz_covar$Z_value)
 
 # 
 # #Calculate the observables:
