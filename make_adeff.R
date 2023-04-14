@@ -137,7 +137,8 @@ bl_data <- bl_data %>%
   select(tcid,das28crp_BL, das28_BL) %>% 
   mutate(das28crp_BL = if_else(is.na(das28crp_BL), das28_BL, das28crp_BL)) %>% 
   group_by(tcid) %>% 
-  summarise(das28crp_bl = mean(das28crp_BL, na.rm = TRUE))
+  summarise(das28crp_bl = mean(das28crp_BL, na.rm = TRUE)) %>%
+  mutate(das28crp_bl = round(das28crp_bl, digits = 1))
 
 adeff <- adeff %>% 
   left_join(bl_data, by = "tcid") 
