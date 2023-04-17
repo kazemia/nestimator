@@ -228,7 +228,7 @@ P_Sigma_list <- list()
 LATEs_list <- list()
 options(show.error.messages = FALSE)
 set.seed(123)
-for (counter2 in 1:6000) {
+for (counter2 in 1:2500) {
   adeff <- data[sample(nrow(data), nrow(data), replace=T),]
   P_Z <- try(pz_margins(adeff))
   if(is.character(P_Z)) next
@@ -265,8 +265,51 @@ options(show.error.messages = TRUE)
 
 
 LATES_BS <- t(matrix(unlist(LATEs_list), nrow = 9))
-apply(LATES_BS,2,median)
-apply(LATES_BS,2,quantile, probs = c(0.025,0.975))
+round(apply(LATES_BS,2,median), digits = 2)
+LATES_BS[(LATES_BS > 1)|(LATES_BS < -1)] <- NA
+2500-colSums(is.na(LATES_BS))
+round(apply(LATES_BS,2,quantile, probs = c(0.025,0.975), na.rm = TRUE), digits = 2)
+
+set.seed(123)
+Crude_BS <- BSCICalculator(2500, data %>% mutate(Z_value = as.numeric(Z_value)), "Z_value", "trtgrp", "das28crprem", TLevels, Z)
+LATES_BS <- Crude_BS$BSData
+round(apply(LATES_BS,2,median), digits = 2)
+LATES_BS[(LATES_BS > 1)|(LATES_BS < -1)] <- NA
+2500-colSums(is.na(LATES_BS))
+round(apply(LATES_BS,2,quantile, probs = c(0.025,0.975), na.rm = TRUE), digits = 2)
+
+
+P_Z_crude <- MakeP_Z(data,Z_column = "Z_value", T_column = "trtgrp")
+P_Z_crude <- P_Z_crude %>% mutate(Z_value = as.numeric(Z_value))
+P_Sigma_crude <- P_SigmaIdentifier(P_Z_crude, KB, b)
+
+data %>% group_by(Z_value) %>% summarise(n())
+
+library(ggplot2)
+library(ggpubr)
+list_plots <- list()
+for(counter in 1:length(Z)){
+  plot_df <- data.frame(x = 1:5, y = as.vector(t(P_Z_crude[counter,Z[[counter]]])))
+  list_plots[[counter]] <- (ggplot(plot_df, aes(x = x,y = y, group = 1)) + 
+                              geom_col() +
+                              scale_x_continuous(breaks=1:5,
+                                                 labels = Z[[counter]]) + 
+                              scale_y_continuous(breaks = (1:9)/10,
+                                                 limits = c(0, 0.9)) +
+                              ylab("Observed probability") + 
+                              xlab("Medications ordered by price") +
+                              ggtitle(paste("NDPC period", 2009 + counter)))
+}
+for(counter in c(2:5,7:10)){
+  list_plots[[counter]] <- list_plots[[counter]] + 
+    rremove("ylab") + rremove("y.text")
+}
+for(counter in 1:5)
+  list_plots[[counter]] <- list_plots[[counter]] + rremove("xlab")
+ggarrange(plotlist = list_plots, nrow = 2, ncol = 5, common.legend = TRUE)
+
+
+
 
 
 

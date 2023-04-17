@@ -106,6 +106,8 @@ data <- data %>% select(-bldt.x) %>% as.data.frame()
 
 P_Z <- MakeP_Z(data, "Z_value", "trtgrp.x")
 
+
+
 #Plot the adherence to LIS-anbudet
 list_plots <- list()
 for(counter in 1:length(Z)){
@@ -139,6 +141,11 @@ SC_summary$NDPC_month <- as.numeric(difftime(NDPC_mid_date,
 SC_summary$Z_group <- c("Not repeated","Not repeated","Inf Eta","Not repeated",
                         "Inf Cer","Inf Cer","Inf Cer", "Inf Eta", "Inf Eta",
                         "Not repeated")
+
+ggplot() + geom_smooth(data = data, aes(x = cal_months, y = das28crprem), method = "glm", formula = y ~ x, method.args = list(family = "binomial")) + 
+  geom_point(data = SC_summary, aes(x = mean_month, y = mean_y)) + ylab("Average Remission rate") + xlab("Months since Jan 2010")
+
+
 
 ggplot() + geom_smooth(data = data, aes(x = cal_months, y = das28crprem), method = "glm", formula = y ~ x, method.args = list(family = "binomial")) + 
   geom_point(data = SC_summary, aes(x = mean_month, y = mean_y, colour = as.factor(Z_group))) + 
