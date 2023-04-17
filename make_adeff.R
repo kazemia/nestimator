@@ -33,6 +33,13 @@ Z <- list("2010" = c("Inf", "Gol", "Cer", "Eta", "Ada"),
 load("data/myData.rdata")
 data <- as.data.frame(my_data)
 remove(my_data)
+
+
+load("data/myData2.rdata")
+bl_data <- as_tibble(my_data)
+remove(my_data)
+
+
 data <- data %>% filter(!is.na(bldt.x))
 data$Z_value <- NA
 data$m <- NA
@@ -126,9 +133,25 @@ adeff <- data %>%
   rename(subjid = patid.x, bldt = bldt.x) %>%
   select(-trtgrp.x) 
 
+bl_data <- bl_data %>% 
+  select(tcid,das28crp_BL, das28_BL) %>% 
+  mutate(das28crp_BL = if_else(is.na(das28crp_BL), das28_BL, das28crp_BL)) %>% 
+  group_by(tcid) %>% 
+  summarise(das28crp_bl = mean(das28crp_BL, na.rm = TRUE)) %>%
+  mutate(das28crp_bl = round(das28crp_bl, digits = 1))
+
+adeff <- adeff %>% 
+  left_join(bl_data, by = "tcid") 
+
+adanon <- adeff %>%
+  mutate(month = month(bldt) + 5 + 12*(year(bldt)-2010)) %>% 
+  select(trtgrp, das28crp_bl, das28crprem, Z_value, month) 
+
+
 library(haven)
 write_dta(adeff, "data/adeff.dta")
 readr::write_rds(adeff, "data/adeff.rds")
+write_csv(adanon, "data/adanon.csv")
 
 
 
