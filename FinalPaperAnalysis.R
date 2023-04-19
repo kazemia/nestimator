@@ -130,6 +130,7 @@ KB <- MakeKB(R, TLevels, 4)
 b <- KbSolver(KB, 3)
 Pis <- PiIdentifier(b)
 
+#Calculate adjusted P_Sigma and LATES
 P_Sigma <- P_SigmaIdentifier(P_Z, KB, b)
 LATEs <- LATEIdentifier(Q_Z, KB, b, P_Sigma)
 
@@ -178,13 +179,14 @@ options(show.error.messages = TRUE)
 
 save.image(file = "data/ClinicalResults.Rdata")
 
-
+#Print the adjusted confidence intervals and estimates
 LATES_BS <- t(matrix(unlist(LATEs_list), nrow = 9))
 round(apply(LATES_BS,2,median), digits = 2)
 LATES_BS[(LATES_BS > 1)|(LATES_BS < -1)] <- NA
 2500-colSums(is.na(LATES_BS))
 round(apply(LATES_BS,2,quantile, probs = c(0.025,0.975), na.rm = TRUE), digits = 2)
 
+#Print the crude confidence intervals and estimates
 set.seed(123)
 Crude_BS <- BSCICalculator(2500, data %>% mutate(Z_value = as.numeric(Z_value)), "Z_value", "trtgrp", "das28crprem", TLevels, Z)
 LATES_BS <- Crude_BS$BSData
@@ -193,13 +195,15 @@ LATES_BS[(LATES_BS > 1)|(LATES_BS < -1)] <- NA
 2500-colSums(is.na(LATES_BS))
 round(apply(LATES_BS,2,quantile, probs = c(0.025,0.975), na.rm = TRUE), digits = 2)
 
-
+#Calculate P_Sigma crude
 P_Z_crude <- MakeP_Z(data,Z_column = "Z_value", T_column = "trtgrp")
 P_Z_crude <- P_Z_crude %>% mutate(Z_value = as.numeric(Z_value))
 P_Sigma_crude <- P_SigmaIdentifier(P_Z_crude, KB, b)
 
+#Print table 3
 data %>% group_by(Z_value) %>% summarise(n())
 
+#Make figure 5
 library(ggplot2)
 library(ggpubr)
 list_plots <- list()
@@ -223,32 +227,11 @@ for(counter in 1:5)
   list_plots[[counter]] <- list_plots[[counter]] + rremove("xlab")
 ggarrange(plotlist = list_plots, nrow = 2, ncol = 5, common.legend = TRUE)
 
+#Make figure 6
+SC_summary <- data %>% group_by(Z_value) %>%
+  summarise(mean_y = mean(das28crprem),
+            mean_month = mean(month))
 
+ggplot() + geom_smooth(data = data, aes(x = month, y = das28crprem), method = "glm", formula = y ~ x, method.args = list(family = "binomial")) + 
+  geom_point(data = SC_summary, aes(x = mean_month, y = mean_y)) + ylab("Average Remission rate") + xlab("Months since Jan 2010")
 
-
-
-
-
-
-model <- glm(das28crprem ~ Z_value:trtgrp + das28crp_BL-1, family = "binomial", data = adeff)
-s <- margins::margins_summary(model, variables = "Z_value:trtgrp")
-b <- summary(s)
-R_Q_Z <- model$coefficients
-R_Q_Z <- R_Q_Z[!(names(R_Q_Z) %in% c("das28crp_BL", "(Intercept)"))]
-R_Q_Z <- matrix(boot::inv.logit(R_Q_Z), ncol = 5)
-R_Q_Z <- as.data.frame(R_Q_Z)
-colnames(R_Q_Z) <- TLevels
-R_Q_Z$Z_value <- 1:10
-R_Q_Z <- R_Q_Z[colnames(P_Z)]
-
-R_Q_Z <- P_Z * R_Q_Z
-R_Q_Z$Z_value <- 1:10
-Q_Z[is.na(Q_Z)] <- R_Q_Z[is.na(Q_Z)]
-Q_Z[is.na(Q_Z)] <- 0
-
-
-R_Q_Z[is.na(R_Q_Z)] <- 0
-
-Q_Z[is.na(Q_Z)] <- 0
-plot(1:10, rowSums(Q_Z %>% select(-Z_value)))
-#plot(1:10, rowSums(R_Q_Z %>% select(-Z_value)))
