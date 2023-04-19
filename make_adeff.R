@@ -30,13 +30,8 @@ Z <- list("2010" = c("Inf", "Gol", "Cer", "Eta", "Ada"),
 #   mutate(Year = as.integer(Year))
 
 # Ready the dataset
-load("data/myData.rdata")
+load("C:/Users/kazem/Documents/Data/myData.rdata")
 data <- as.data.frame(my_data)
-remove(my_data)
-
-
-load("data/myData2.rdata")
-bl_data <- as_tibble(my_data)
 remove(my_data)
 
 
@@ -132,7 +127,7 @@ adeff <- data %>%
   mutate(trtgrp = factor(trtgrp.x, level = TLevels)) %>%
   rename(subjid = patid.x, bldt = bldt.x) %>%
   select(-trtgrp.x) 
-
+bl_data <- data
 bl_data <- bl_data %>% 
   select(tcid,das28crp_BL, das28_BL) %>% 
   mutate(das28crp_BL = if_else(is.na(das28crp_BL), das28_BL, das28crp_BL)) %>% 
@@ -144,7 +139,9 @@ adeff <- adeff %>%
   left_join(bl_data, by = "tcid") 
 
 adanon <- adeff %>%
-  mutate(month = month(bldt) + 5 + 12*(year(bldt)-2010)) %>% 
+  mutate(month = floor(as.numeric(difftime(bldt,
+                                     as.Date("2010-01-31", "%Y-%m-%d"), 
+                                     units = "days"))/30.417)+1) %>% 
   select(trtgrp, das28crp_bl, das28crprem, Z_value, month) 
 
 
