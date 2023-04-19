@@ -18,10 +18,6 @@ data$Year = as.integer(2009 + data$Z_value)
 data$trtgrp <- factor(data$trtgrp, levels = TLevels)
 data$Z_value <- factor(data$Z_value, levels = 1:10)
 
-imputationModel <- mice::mice(data, m = 1)
-data <- mice::complete(imputationModel)
-remove(imputationModel)
-
 adeff <- data
 remove(data)
 

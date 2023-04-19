@@ -137,11 +137,14 @@ bl_data <- bl_data %>%
 
 adeff <- adeff %>% 
   left_join(bl_data, by = "tcid") 
+adeff <- adeff %>% select(-das28_BL, -das28_BL, -bldt, -tcid, -subjid)
+
+imputationModel <- mice::mice(adeff, m = 1)
+adeff <- mice::complete(imputationModel)
+remove(imputationModel)
 
 adanon <- adeff %>%
-  mutate(month = floor(as.numeric(difftime(bldt,
-                                     as.Date("2010-01-31", "%Y-%m-%d"), 
-                                     units = "days"))/30.417)+1) %>% 
+  mutate(month = floor(cal_months)+1) %>% 
   select(trtgrp, das28crp_bl, das28crprem, Z_value, month) 
 
 
