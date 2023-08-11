@@ -427,6 +427,7 @@ BSCICalculator <- function(n, data, Z_column, T_column, Y_column, TLevels, Z,
   }
   myCluster <- makeCluster(n_cores)
   registerDoParallel(myCluster)
+  registerDoRNG(1234)
   boot_b <- foreach(b=idiv(n, chunks=getDoParWorkers()), .combine = "cbind",
                     .packages = c("dplyr", "tidyverse", "stringr",
                                   "lpSolve")) %dopar% {

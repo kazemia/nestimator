@@ -1,0 +1,10 @@
+Z <- list(19Apr2023 = c("Ada", "Eta", "Inf", "Cer", "Gol"),
+          21Nov2022 = c("Ada", "Eta", "Inf", "Cer", "Gol"),
+          01Apr2022 = c("Ada", "Eta", "Inf", "Cer", "Gol"),
+          01Jan2021 = c("Ada", "Eta", "Inf", "Cer", "Gol"),
+          02Jul2020 = c("Ada", "Eta", "Inf", "Gol", "Cer"),
+          01Apr2019 = c("Ada", "Eta", "Inf", "Gol", "Cer"),
+          01Jun2018 = c("Inf", "Eta"),
+          01Apr2018 = c("Inf", "Eta"),
+          01Oct2017 = c("Inf", "Eta"),
+          01Feb2017 = c("Inf", "Eta"))
