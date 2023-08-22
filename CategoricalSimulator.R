@@ -6,8 +6,6 @@ Z <- list("2010" = c("t1", "t2", "t3"),
           "2011" = c("t2", "t1", "t3"),
           "2012" = c("t2", "t3", "t1"),
           "2013" = c("t3", "t2", "t1")
-          #"2014" = c("t1", "t3", "t2")
-          #"2015" = c("t3", "t1", "t2")
 )
 
 nZ <- length(Z)
@@ -23,7 +21,7 @@ Pis <- PiIdentifier(b)
 #Specify arguments again for CatSimulator2
 VT = as.matrix(data.frame(V1T = c(exp(3),0,0), V2T = c(0,exp(3),0)))
 VP = c(0.5,0.5)
-VY = c(0.25, 0.25)
+VY = c(0.3, 0.3)
 TY = c(0.05,0.2,0.35)
 Vadj = c(TRUE, FALSE)
 
