@@ -249,7 +249,7 @@ data %>% group_by(Z_value) %>% summarise(n())
 list_plots <- list()
 for(counter in 1:length(Z)){
   plot_df <- data.frame(x = 1:5, y = as.vector(t(P_Z_crude[counter,Z[[counter]]])))
-  list_plots[[counter]] <- (ggplot(plot_df, aes(x = x,y = y, group = 1)) + 
+  list_plots[[counter]] <- (ggplot(plot_df, aes(x = x,y = y, group = 1, fill = Z[[counter]])) + 
                               geom_col() +
                               scale_x_continuous(breaks=1:5,
                                                  labels = Z[[counter]]) + 
@@ -257,7 +257,8 @@ for(counter in 1:length(Z)){
                                                  limits = c(0, 0.9)) +
                               ylab("Observed probability") + 
                               xlab("Medications ordered by price") +
-                              ggtitle(paste("NDPC period", 2009 + counter)))
+                              ggtitle(paste("NDPC period", 2009 + counter))+
+                              scale_fill_hue(l=40)) + labs(fill = "Treatment")
 }
 for(counter in c(2:5,7:10)){
   list_plots[[counter]] <- list_plots[[counter]] + 
