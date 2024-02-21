@@ -118,7 +118,8 @@ for(t in TTs){
                                      filter((method %in% meths) & (TT == t)),
                                    aes(x = n,
                                        y = est_mean,
-                                       color = method)) + 
+                                       color = method, 
+                                       linetype = method)) + 
                               geom_line() + 
                               geom_hline(yintercept = (TY[t1] - TY[t2])) +
                               scale_x_continuous(n.breaks = 5) + 
@@ -126,19 +127,22 @@ for(t in TTs){
                               ylab("Median") + 
                               xlab(TeX(r'($n_s$)')) +
                               scale_color_discrete(name = "Estimator:", labels = c("Naive", "DIV", "CIV")) + 
+                              scale_linetype_manual(name = "Estimator:", labels = c("Naive", "DIV", "CIV"), values = c("dotdash", "88", "f1")) +
                               ggtitle(title))
   
   list_plots[[counter+3]] <- (ggplot(my_sum %>%
                                        filter((method %in% meths) & (TT == t)),
                                      aes(x = n,
                                          y = exp(est_sd),
-                                         color = method)) + 
+                                         color = method, 
+                                         linetype = method)) + 
                                 geom_line() + 
                                 scale_x_continuous(n.breaks = 5) + 
                                 scale_y_continuous(n.breaks = 5) +
                                 ylab("Standard Deviation") + 
                                 xlab(TeX(r'($n_s$)')) +
-                                scale_color_discrete(name = "Estimator:", labels = c("Naive", "DIV", "CIV")))
+                                scale_color_discrete(name = "Estimator:", labels = c("Naive", "DIV", "CIV")) + 
+                                scale_linetype_manual(name = "Estimator:", labels = c("Naive", "DIV", "CIV"), values = c("dotdash", "88", "f1")))
   counter <- counter + 1
 }
 library(ggpubr)
