@@ -318,7 +318,7 @@ CatSimulator <- function(n, Z, A, TLevels, VLevels, VP, VA, VY, TY, T_decider){
   return(data.frame(Z = Z_obs_ind, T = T_obs, Y = Y_obs))
 }
 
-CatSimulator2 <- function(n, Z, TLevels, VT, VP, VY, TY, VReturn, ZT = "exp"){
+CatSimulator2 <- function(n, Z, TLevels, VT, VP, VY, TY, YPintercept, VReturn, ZT = "exp"){
   Z_obs_ind <- sample.int(length(Z), size = n, replace = TRUE)
   Z_obs <- Z[Z_obs_ind]
   names(Z_obs) <- 1:n
@@ -337,7 +337,7 @@ CatSimulator2 <- function(n, Z, TLevels, VT, VP, VY, TY, VReturn, ZT = "exp"){
   T_probs <- t(apply(T_probs, 1, function(r) r/sum(r)))
   T_obs <- apply(T_probs, 1, function(x) sample(TLevels, size = 1, prob = x))
   YP <- V_obs %*% VY
-  YP <- TY[match(T_obs, TLevels)] + (V_obs %*% VY)
+  YP <- TY[match(T_obs, TLevels)] + (V_obs %*% VY) + YPintercept
   YP[YP < 0] = 0
   YP[YP > 1] = 1
   Y_obs <- rbinom(rep(n,n),1,YP)

@@ -1,6 +1,10 @@
 #Specify the treatments and the instrument values
+
 source("Functions.R")
 library(doRNG)
+library(ggplot2)
+library(gridExtra)
+library(latex2exp)
 TLevels <- c("t1", "t2", "t3")
 Z <- list("2010" = c("t1", "t2", "t3"),
           "2011" = c("t2", "t1", "t3"),
@@ -21,16 +25,17 @@ Pis <- PiIdentifier(b)
 #Specify arguments again for CatSimulator2
 VT = as.matrix(data.frame(V1T = c(exp(3),0,0), V2T = c(0,exp(3),0)))
 VP = c(0.5,0.5)
-VY = c(0.3, 0.3)
-TY = c(0.05,0.2,0.35)
+VY = c(0.1, 0.1)
+TY = c(0.05,0.1,0.15)
+YPintercept = 0.2
 Vadj = c(TRUE, FALSE)
 
 #Specify maximum number of observations in simulation, the step 
 #and number of simulations pr step
-sim_max <- 5000
+sim_max <- 3000
 sim_start <- 500
-sim_step <- 500
-n_sim <- 1000
+sim_step <- 250
+n_sim <- 5000
 TT_vec <- c("t1_t2", "t1_t3", "t2_t3")
 
 #Simulate
@@ -46,7 +51,7 @@ for(nP in floor(sim_start/sim_step):floor(sim_max/sim_step)){
     for(counter2 in 1:counter){
       #Simulate the data
       sim_data <- CatSimulator2(nP*sim_step, Z, TLevels, VT,
-                                VP, VY, TY, Vadj)
+                                VP, VY, TY, YPintercept, Vadj)
       #Calculate the CIV estimator
       P_Z <- MakeP_Z(sim_data, "Z", "T")
       Q_Z <- MakeQ_Z(sim_data, "Z", "T", "Y")
@@ -155,3 +160,51 @@ for(counter in 1:3)
 ggarrange(plotlist = list_plots, nrow = 2, ncol = 3, common.legend = TRUE)
 
 
+#Make a histogram
+myCluster <- makeCluster(15)
+registerDoParallel(myCluster)
+registerDoRNG(123)
+P_Z_res <- list()
+for(nP in floor(sim_start/sim_step):floor(sim_max/sim_step)){
+  P_Z_res[[nP]] <- foreach(counter=idiv(n_sim, chunks=getDoParWorkers()), .combine = rbind,
+                           .packages = c("dplyr", "tidyverse", "stringr","lpSolve")
+  ) %dopar% {
+    out <- data.frame(Z = NA, t1 = NA, t2 = NA, t3 = NA, n = NA)
+    for(counter2 in 1:counter){
+      #Simulate the data
+      sim_data <- CatSimulator2(nP*sim_step, Z, TLevels, VT,
+                                VP, VY, TY, YPintercept, Vadj)
+      #Calculate the CIV estimator
+      P_Z <- MakeP_Z(sim_data, "Z", "T")
+      P_Z$n <- nP*sim_step
+      out <- out %>% rbind(P_Z)
+    }
+    out[2:nrow(out),]
+  }
+}
+stopCluster(myCluster)
+P_Z_results <- P_Z_res[[1]]
+for (counter in 2:length(P_Z_res)) {
+  P_Z_results <- rbind(P_Z_results, P_Z_res[[counter]])
+}
+remove(P_Z_res)
+hist_P_Z <- P_Z_results %>% as.data.frame() %>% group_by(Z) %>% summarise_all(mean)
+hist_P_Z <- hist_P_Z %>% select(-n)
+
+list_plots <- list()
+for(counter in 1:length(Z)){
+  plot_df <- data.frame(x = 1:3, y = as.vector(t(hist_P_Z[counter,Z[[counter]]])))
+  list_plots[[counter]] <- (ggplot(plot_df, aes(x = x,y = y, group = 1)) + 
+                              geom_col() +
+                              scale_x_continuous(breaks=1:3,
+                                                 labels = TeX(paste0(r'($t_)', substring(Z[[counter]], 2), r'($)'))) + 
+                              scale_y_continuous(breaks = (1:3)/5,
+                                                 limits = c(0, 0.6)) +
+                              ylab("Average probability") + 
+                              xlab("Treatments ordered by price") +
+                              ggtitle(TeX(paste0(r'($Z = z_)', counter, r'($)'))))
+}
+
+for(counter in 1:3)
+  list_plots[[counter]] <- list_plots[[counter]] + rremove("xlab")
+ggarrange(plotlist = list_plots, nrow = 4, ncol = 1)
